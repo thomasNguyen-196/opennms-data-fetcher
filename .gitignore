@@ -1,0 +1,67 @@
+# Byte-compiled / optimized / internal files
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+*.egg-info/
+.pytest_cache/
+.tox/
+
+# Cấu hình môi trường ảo
+# Tên thư mục môi trường ảo phổ biến (uncomment nếu bạn dùng)
+# venv/
+# env/
+# .venv/
+# /local/
+
+# Thư mục build
+dist/
+build/
+*.egg
+
+# Thư mục lưu trữ tài liệu
+# docs/_build/
+
+# IDE/Editor (uncomment những dòng cần thiết)
+# JetBrains (PyCharm)
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# VS Code
+.vscode/
+
+# Jupyter Notebook / ipynb
+.ipynb_checkpoints
+
+# Hệ điều hành
+.DS_Store
+Thumbs.db
+
+# Logs và Database
+*.log
+*.sqlite
+/db.sqlite3
+
+# Config và Secret (nếu không nên đưa lên repo)
+# Lưu ý: Cần cẩn thận khi sử dụng wildcard cho các file config
+# *.ini
+# *.cfg
+# *.json
+# .env
+# settings.py
+# local_settings.py
+
+# Data (Dữ liệu lớn, tập tin đã được tạo ra)
+*.zip
+*.tar.gz
+*.pkl
+*.data
+
+# Testing/Coverage
+.coverage
+htmlcov/
+
+# Personal data
+iperf3*.json
