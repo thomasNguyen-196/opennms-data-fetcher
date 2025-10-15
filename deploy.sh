@@ -40,17 +40,14 @@ else
 fi
 
 # By this point, we are guaranteed to be in the correct directory.
-echo '--- Running Python script ---'
-python3 main.py
-
-echo '--- Remote execution finished ---'
+echo '--- Source code is ready on remote ---'
 EOF
 
 # --- Post Execution ---
 if [ $? -eq 0 ]; then
-    echo "Deployment script executed successfully on remote."
+    echo "Deployment script finished successfully."
 else
-    echo "An error occurred during remote execution."
+    echo "An error occurred during deployment."
 fi
 
 echo "Deployment script finished."
