@@ -47,10 +47,11 @@ echo '--- Remote execution finished ---'
 EOF
 
 # --- Post Execution ---
-if [ \$? -eq 0 ]; then
+if [ $? -eq 0 ]; then
     echo "Deployment script executed successfully on remote."
 else
     echo "An error occurred during remote execution."
 fi
 
 echo "Deployment script finished."
+# --- End of Script ---
