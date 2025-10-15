@@ -16,6 +16,7 @@ import json
 import csv
 import os
 import os.path as osp
+import logging
 from datetime import datetime
 
 import rrdtool
@@ -23,13 +24,15 @@ import pandas as pd
 
 # ===== CONFIG =====
 REMOTE_USER = "tung196"
-REMOTE_HOST = "192.168.1.77"               # X240 IP
+REMOTE_HOST = "100.71.60.46"               # X240 Tailscale IP
 SSH_KEY_PATH = "~/.ssh/id_ed25519_opennms" # will be expanded
 REMOTE_JSON_PATH = "/tmp/iperf3_server.json"
 
-LOCAL_CLIENT_JSON = "iperf3_client.json"   # overwritten each run
+JSON_DIR = "json_data"
+LOCAL_CLIENT_JSON = osp.join(JSON_DIR, "iperf3_client.json")   # overwritten each run
 LOCAL_SERVER_JSON = "iperf3_server.json"   # temp name when scp
 CSV_OUT = "merged_bits_dual.csv"
+LOG_FILE = "data_fetcher.log"
 
 IPERF_DURATION = 1800        # seconds; set 1800 for 30 minutes
 IPERF_BW = "10M"            # e.g., 1M or 10M
@@ -42,6 +45,17 @@ RRD_RESOLUTION = 30         # seconds (must match your polling interval)
 # ===================
 
 # ---------- util helpers ----------
+
+def setup_logging():
+    """Set up logging to file and console."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler(LOG_FILE),
+            logging.StreamHandler()
+        ]
+    )
 
 def align_up(ts: int, step: int) -> int:
     """Round up timestamp ts to nearest multiple of step."""
@@ -77,6 +91,7 @@ def run_ssh(cmd_str: str) -> str:
     full = _ssh_base([cmd_str])
     p = subprocess.run(full, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if p.returncode != 0:
+        logging.error(f"SSH command failed: {p.stderr}")
         raise RuntimeError(p.stderr)
     return p.stdout.strip()
 
@@ -85,23 +100,20 @@ def start_server() -> str:
     # Start iperf3 server on remote in background, log JSON to REMOTE_JSON_PATH, return PID
     cmd = f"nohup iperf3 -s -i {IPERF_RESOLUTION} -J > {REMOTE_JSON_PATH} 2>&1 & echo $!"
     pid = run_ssh(cmd)
-    print("[+] Started remote iperf3 server PID", pid)
+    logging.info(f"Started remote iperf3 server PID {pid}")
     return pid
-
 
 def stop_server(pid: str) -> None:
     try:
         run_ssh(f"kill {pid}")
-        print("[+] Stopped remote iperf3 server")
+        logging.info("Stopped remote iperf3 server")
     except Exception as e:
-        print("[!] Warning stopping server:", e)
-
+        logging.warning(f"Warning stopping server: {e}")
 
 def scp_server_json(dest: str) -> None:
     src = f"{REMOTE_USER}@{REMOTE_HOST}:{REMOTE_JSON_PATH}"
     cmd = _scp_base(src, dest)
     subprocess.run(cmd, check=True)
-
 
 # ---------- RRD fetch ----------
 def fetch_rrd(rrd_path: str, start_ts: int, end_ts: int, resolution: int) -> dict:
@@ -195,7 +207,7 @@ def parse_iperf_server_json_blocks(fname: str, resample_sec=30) -> dict:
                 records.append((abs_ts, float(bps)))
 
     if not records:
-        print(f"[!] Warning: no valid intervals parsed from {fname}")
+        logging.warning(f"No valid intervals parsed from {fname}")
     return _resample_records_to_dict(records, resample_sec)
 
 
@@ -203,7 +215,7 @@ def parse_iperf_server_json_blocks(fname: str, resample_sec=30) -> dict:
 def run_client(reverse: bool = False) -> None:
     flag = ["-R"] if reverse else []
     mode = "REVERSE" if reverse else "NORMAL"
-    print(f"[+] Running iperf3 {mode} for {IPERF_DURATION}s...")
+    logging.info(f"Running iperf3 {mode} for {IPERF_DURATION}s...")
     cmd = [
         "iperf3", "-c", REMOTE_HOST,
         "-u", "-b", IPERF_BW,
@@ -214,7 +226,7 @@ def run_client(reverse: bool = False) -> None:
     ]
     with open(LOCAL_CLIENT_JSON, "w") as f:
         subprocess.run(cmd, stdout=f, check=True)
-    print("[+] Client JSON saved:", LOCAL_CLIENT_JSON)
+    logging.info(f"Client JSON saved: {LOCAL_CLIENT_JSON}")
 
 
 # ---------- CSV writer ----------
@@ -238,7 +250,7 @@ def write_csv(rrd_in: dict, rrd_out: dict, in_series: dict, out_series: dict, ou
             "iperf_server_in_bps", "iperf_server_out_bps",
         ])
         w.writerows(rows)
-    print("[+] Wrote merged CSV", out_csv)
+    logging.info(f"Wrote merged CSV {out_csv}")
 
 
 # ---------- small helpers ----------
@@ -251,45 +263,49 @@ def series_time_range(series: dict):
 
 # ---------- main flow ----------
 def main():
+    setup_logging()
+    # Create data directory if it doesn't exist
+    os.makedirs(JSON_DIR, exist_ok=True)
+
     # Pass 1: NORMAL (server receives -> inbound)
     pid = start_server()
     t_start = int(time.time())
-    print(f"[*] raw t_start: {t_start} ({datetime.fromtimestamp(t_start).isoformat(sep=' ')})")
+    logging.info(f"raw t_start: {t_start} ({datetime.fromtimestamp(t_start).isoformat(sep=' ')})")
 
     run_client(reverse=False)
     stop_server(pid)
-    scp_server_json("iperf3_server_in.json")
+    scp_server_json(osp.join(JSON_DIR, "iperf3_server_in.json"))
 
     # Pass 2: REVERSE (server sends -> outbound)
     pid = start_server()
     run_client(reverse=True)
     stop_server(pid)
-    scp_server_json("iperf3_server_out.json")
+    scp_server_json(osp.join(JSON_DIR, "iperf3_server_out.json"))
 
     # --- WAIT and ALIGN to RRD_RESOLUTION ---
-    print("[*] Waiting for OpenNMS/collectd to flush final RRD samples...")
+    logging.info("Waiting for OpenNMS/collectd to flush final RRD samples...")
     # conservative wait: 2 steps (adjust if your polling interval is larger)
     time.sleep(RRD_RESOLUTION * 2)
 
     t_end = int(time.time())
-    print(f"[*] raw t_end: {t_end} ({datetime.fromtimestamp(t_end).isoformat(sep=' ')})")
+    logging.info(f"raw t_end: {t_end} ({datetime.fromtimestamp(t_end).isoformat(sep=' ')})")
 
     # align both start and end to the RRD grid
     t_start_aligned = align_down(t_start, RRD_RESOLUTION)
     t_end_aligned = align_up(t_end, RRD_RESOLUTION)
 
-    print(f"[*] Aligned time window -> start: {t_start_aligned}, end: {t_end_aligned}, step: {RRD_RESOLUTION}s")
+    logging.info(f"Aligned time window -> start: {t_start_aligned}, end: {t_end_aligned}, step: {RRD_RESOLUTION}s")
 
     # debug: print last update timestamps from RRD files
     last_in = get_rrd_last_update(RRD_IN)
     last_out = get_rrd_last_update(RRD_OUT)
-    print(f"[*] RRD last update: IN={last_in} ({datetime.fromtimestamp(last_in).isoformat(sep=' ' ) if last_in else 'N/A'}) OUT={last_out} ({datetime.fromtimestamp(last_out).isoformat(sep=' ') if last_out else 'N/A'})")
+    logging.info(f"RRD last update: IN={last_in} ({datetime.fromtimestamp(last_in).isoformat(sep=' ' ) if last_in else 'N/A'}) OUT={last_out} ({datetime.fromtimestamp(last_out).isoformat(sep=' ') if last_out else 'N/A'})")
 
     # Parse iperf results (server-side metrics only)
-    print("[+] Parsing iperf3 inbound (server receive)")
-    server_in_series = parse_iperf_server_json_blocks("iperf3_server_in.json", RRD_RESOLUTION)
-    print("[+] Parsing iperf3 outbound (server send)")
-    server_out_series = parse_iperf_server_json_blocks("iperf3_server_out.json", RRD_RESOLUTION)
+    logging.info("Parsing iperf3 inbound (server receive)")
+    server_in_series = parse_iperf_server_json_blocks(osp.join(JSON_DIR, "iperf3_server_in.json"), RRD_RESOLUTION)
+    logging.info("Parsing iperf3 outbound (server send)")
+    server_out_series = parse_iperf_server_json_blocks(osp.join(JSON_DIR, "iperf3_server_out.json"), RRD_RESOLUTION)
 
     # Determine combined iperf time window: from start of IN phase to end of OUT phase
     in_min, in_max = series_time_range(server_in_series)
@@ -300,35 +316,35 @@ def main():
     candidates_max = [v for v in (in_max, out_max) if v is not None]
 
     if not candidates_min or not candidates_max:
-        print("[WARN] One or both iperf series are empty — cannot determine full iperf range reliably.")
+        logging.warning("One or both iperf series are empty — cannot determine full iperf range reliably.")
         ip_min = ip_max = None
     else:
         ip_min = min(candidates_min)
         ip_max = max(candidates_max)
 
-    print(f"[*] iperf combined range: {ip_min} -> {ip_max}")
+    logging.info(f"iperf combined range: {ip_min} -> {ip_max}")
 
     # Fetch RRD data using aligned window (already aligned earlier)
-    print("[+] Fetching RRD...")
+    logging.info("Fetching RRD...")
     rrd_in = fetch_rrd(RRD_IN, t_start_aligned, t_end_aligned, RRD_RESOLUTION)
     rrd_out = fetch_rrd(RRD_OUT, t_start_aligned, t_end_aligned, RRD_RESOLUTION)
 
     # debug: inspect overlap between iperf combined window and rrd
     rrd_min, rrd_max = series_time_range(rrd_in)
-    print(f"[*] RRD range: {rrd_min} -> {rrd_max}")
+    logging.info(f"RRD range: {rrd_min} -> {rrd_max}")
     if ip_min is not None and ip_max is not None:
         overlap_start = max(rrd_min, ip_min) if rrd_min is not None else ip_min
         overlap_end   = min(rrd_max, ip_max) if rrd_max is not None else ip_max
         if overlap_start is not None and overlap_end is not None and overlap_start <= overlap_end:
-            print(f"[OK] Overlap exists: {overlap_start} -> {overlap_end}")
+            logging.info(f"Overlap exists: {overlap_start} -> {overlap_end}")
         else:
-            print("[WARN] No overlap between RRD and iperf series — consider increasing wait or checking polling interval")
+            logging.warning("No overlap between RRD and iperf series — consider increasing wait or checking polling interval")
     else:
-        print("[WARN] iperf combined range unknown, skip overlap check.")
+        logging.warning("iperf combined range unknown, skip overlap check.")
 
 
     write_csv(rrd_in, rrd_out, server_in_series, server_out_series, CSV_OUT)
-    print("[+] DONE ✅")
+    logging.info("DONE ✅")
 
 
 if __name__ == "__main__":
