@@ -18,6 +18,7 @@ import os
 import os.path as osp
 import logging
 from datetime import datetime
+from time import sleep
 
 import rrdtool
 import pandas as pd
@@ -272,12 +273,17 @@ def main():
     t_start = int(time.time())
     logging.info(f"raw t_start: {t_start} ({datetime.fromtimestamp(t_start).isoformat(sep=' ')})")
 
+    sleep(3)  # give server a moment to start
+
     run_client(reverse=False)
     stop_server(pid)
     scp_server_json(osp.join(JSON_DIR, "iperf3_server_in.json"))
 
     # Pass 2: REVERSE (server sends -> outbound)
     pid = start_server()
+
+    sleep(3)  # give server a moment to start
+
     run_client(reverse=True)
     stop_server(pid)
     scp_server_json(osp.join(JSON_DIR, "iperf3_server_out.json"))
