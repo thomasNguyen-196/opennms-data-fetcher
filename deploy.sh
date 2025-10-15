@@ -31,8 +31,8 @@ if [ -d "${REMOTE_REPO_DIR}" ]; then
   echo 'Repository directory found. Pulling latest changes...'
   cd "${REMOTE_REPO_DIR}"
   git fetch origin
-  git checkout main
-  git pull --ff-only origin main
+  git checkout master
+  git pull --ff-only origin master
 else
   echo 'Repository directory not found. Cloning from ${REPO_URL}...'
   git clone "${REPO_URL}" "${REMOTE_REPO_DIR}"
