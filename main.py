@@ -35,7 +35,7 @@ LOCAL_SERVER_JSON = "iperf3_server.json"   # temp name when scp
 CSV_OUT = "merged_bits_dual.csv"
 LOG_FILE = "data_fetcher.log"
 
-IPERF_DURATION = 1800        # seconds; set 1800 for 30 minutes
+IPERF_DURATION = 60        # seconds; set 1800 for 30 minutes
 IPERF_BW = "10M"            # e.g., 1M or 10M
 IPERF_RESOLUTION = 1        # iperf3 report interval (seconds)
 
@@ -151,7 +151,10 @@ def fetch_rrd(rrd_path: str, start_ts: int, end_ts: int, resolution: int) -> dic
     for row in rows:
         v = row[0]
         if v is not None:
-            res[ts] = v * 8.0  # octets/s -> bits/s
+            if rrd_path.endswith("ifHCInOctets.rrd") or rrd_path.endswith("ifHCOutOctets.rrd"):
+                res[ts] = v * 8.0  # octets/s -> bits/s
+            else:
+                res[ts] = v        # other metrics (e.g., loadavg, mem) keep as-is
         ts += step
     return res
 
@@ -359,11 +362,13 @@ def main():
     logging.info(f"iperf combined range: {ip_min} -> {ip_max}")
 
     # Fetch RRD data using aligned window (already aligned earlier)
-    logging.info("Fetching RRD...")
+    logging.info("Fetching throughput RRD...")
     rrd_in = fetch_rrd(RRD_IN, t_start_aligned, t_end_aligned, RRD_RESOLUTION)
     rrd_out = fetch_rrd(RRD_OUT, t_start_aligned, t_end_aligned, RRD_RESOLUTION)
 
+
     # Fetch overhead metrics from Core ===
+    logging.info("Fetching overhead RRDs...")
     overhead_series = fetch_multiple_rrd(RRD_OVERHEAD, t_start_aligned, t_end_aligned, RRD_RESOLUTION)
 
     # debug: inspect overlap between iperf combined window and rrd
@@ -381,7 +386,7 @@ def main():
         logging.warning("iperf combined range unknown, skip overlap check.")
 
 
-    write_csv(rrd_in, rrd_out, server_in_series, server_out_series, CSV_OUT)
+    write_csv(rrd_in, rrd_out, server_in_series, server_out_series, overhead_series,CSV_OUT)
     logging.info("DONE ✅")
 
 
