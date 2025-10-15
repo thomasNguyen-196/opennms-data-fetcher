@@ -9,29 +9,28 @@ At a glance:
 
 ## Repository Layout
 
-- `main.py` – orchestrates the dual `iperf3` runs, pulls RRD data, merges, and logs to `data_fetcher.log`.
-- `deploy.sh` – clones/updates the repo and runs `main.py` on a remote Linux host.
-- `sync_and_run.sh` – pushes local changes with `rsync` and executes `main.py` remotely (ideal for quick tests).
-- `merged_bits_dual-*.csv` – sample merged output.
+- `main.py` – The main data fetching and processing script.
+- `deploy.sh` – Deploys the repository to a remote host using Git.
+- `sync_and_run.sh` – Syncs local changes and executes the script on a remote host.
+- `merged_bits_dual-*.csv` – Sample merged output.
 
 ## Prerequisites
 
 ### Local machine
 - Python 3.10+ with `pandas` and the Python `rrdtool` bindings installed.
-- `iperf3`, `ssh`, and `scp`.
-- Network access to your OpenNMS server so the Python RRD bindings can read `.rrd` files.
+- `iperf3`, `ssh`, `scp`, and `rsync`.
 
 Suggested packages on Ubuntu/Debian:
 
 ```bash
 sudo apt update
-sudo apt install python3 python3-pip python3-rrdtool iperf3 openssh-client
+sudo apt install python3 python3-pip python3-rrdtool iperf3 openssh-client rsync
 pip install --user pandas
 ```
 
 ### Windows note (WSL & rsync)
 
-`sync_and_run.sh` depends on `rsync`, which is not bundled with Windows. Run the helper scripts from Windows Subsystem for Linux (WSL) where `rsync`, `ssh`, and other GNU tools are available. Example:
+`sync_and_run.sh` depends on `rsync`. Run the helper scripts from Windows Subsystem for Linux (WSL) where `rsync`, `ssh`, and other GNU tools are available. Example:
 
 ```bash
 wsl
@@ -43,17 +42,25 @@ cd /home/<user>/opennms-data-fetcher
 
 There are two remote endpoints referenced in the scripts:
 
-- **iperf3 target (`main.py`)** – default `REMOTE_HOST=100.71.60.46`. This machine must have `iperf3` installed and accessible over SSH with the configured key.
-- **deployment/sync target (`deploy.sh`, `sync_and_run.sh`)** – default `100.97.19.21`. This host runs `python3 main.py` after updating or syncing the repo and therefore also needs the Python dependencies above.
+- **iperf3 target (`main.py`)** – default `REMOTE_HOST=100.71.60.46`. This machine must have `iperf3` installed and be accessible over SSH.
+- **Execution target (`deploy.sh`, `sync_and_run.sh`)** – default `100.97.19.21`. This is the machine where the code is deployed and executed. It must have `git` (for `deploy.sh`) and all the Python dependencies listed above (for `sync_and_run.sh`).
 
 Adjust the IPs, usernames, and key paths in each script to match your environment.
+
+## Script Permissions
+
+Before running the helper scripts, make them executable:
+
+```bash
+chmod +x deploy.sh sync_and_run.sh
+```
 
 ## SSH Key Setup (Ed25519)
 
 The scripts use Ed25519 keys (for example `~/.ssh/id_ed25519_opennms`). To create one:
 
 ```bash
-ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519-C "your_email_address"
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -C "your_email_address"
 chmod 600 ~/.ssh/id_ed25519
 ```
 
@@ -90,17 +97,25 @@ Output artifacts:
 
 ## Remote Workflows
 
-- **Deploy & run from GitHub:**  
-  ```bash
-  ./deploy.sh
-  ```  
-  This connects to the deployment host, ensures the repo is present on `master`, then runs `python3 main.py`.
+There is a two-step process for running the fetcher remotely:
 
-- **Sync local edits & run (requires WSL):**  
-  ```bash
-  ./sync_and_run.sh
-  ```  
-  Uses `rsync` from WSL to mirror the working directory (excluding logs, scripts, and JSON data) to the remote host before executing `main.py`.
+### 1. Initial Deployment
+
+First, use `deploy.sh` to clone the repository onto your execution target machine. You only need to do this once.
+
+```bash
+./deploy.sh
+```
+This connects to the host, creates the directory, and clones the `master` branch from GitHub.
+
+### 2. Sync and Run
+
+For all subsequent runs, use `sync_and_run.sh`. This is your main script for development and testing.
+
+```bash
+./sync_and_run.sh
+```
+This script uses `rsync` to mirror your local working directory to the remote host (which is much faster than a full git push/pull) and then executes `main.py`.
 
 Ensure the SSH key referenced in each script matches the key you generated earlier.
 
