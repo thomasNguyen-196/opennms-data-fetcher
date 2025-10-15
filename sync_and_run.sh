@@ -39,11 +39,27 @@ echo "Sync complete."
 echo "Running Python script on remote..."
 
 ssh -i "${SSH_KEY_PATH}" "${REMOTE_USER}@${REMOTE_HOST}" bash <<EOF
-set -e  # Exit immediately if a command exits with a non-zero status.
-set -x  # Print commands and their arguments as they are executed.
+set -e
 
 cd "${REMOTE_REPO_DIR}"
-python3 main.py
+
+# Define the log file name (CHANGE THIS to your actual log file name!)
+LOG_FILE="data_fetcher.log"
+
+# Run the Python script in the background
+# Use 'nohup' if you want it to survive SSH session disconnection (optional)
+python3 main.py >/dev/null 2>&1 &
+PYTHON_PID=\$! # Get the Process ID (PID) of the Python script
+
+# Start following the log file in the background
+tail -f "\${LOG_FILE}" &
+TAIL_PID=\$! # Get the PID of the tail process
+
+# Wait for the Python process to finish
+wait \$PYTHON_PID
+
+# Once Python is done, stop the tail process
+kill \$TAIL_PID 2>/dev/null
 
 echo "--- Remote execution finished ---"
 EOF
