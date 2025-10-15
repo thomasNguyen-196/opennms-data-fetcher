@@ -70,6 +70,14 @@ kill \$TAIL_PID 2>/dev/null
 echo "--- Remote execution finished ---"
 EOF
 
+# Copy the csv file back to local machine
+echo "Copying result CSV file back to local machine..."
+scp -i "${SSH_KEY_PATH}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_REPO_DIR}/merged_bits_dual.csv" .
+
+# Copy the log file back to local machine
+echo "Copying log file back to local machine..."
+scp -i "${SSH_KEY_PATH}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_REPO_DIR}/data_fetcher.log" .
+
 # --- Post Execution ---
 if [ $? -eq 0 ]; then
     echo "Script executed successfully on remote."
