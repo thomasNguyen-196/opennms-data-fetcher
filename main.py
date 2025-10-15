@@ -34,7 +34,7 @@ LOCAL_SERVER_JSON = "iperf3_server.json"   # temp name when scp
 CSV_OUT = "merged_bits_dual.csv"
 LOG_FILE = "data_fetcher.log"
 
-IPERF_DURATION = 1800        # seconds; set 1800 for 30 minutes
+IPERF_DURATION = 30        # seconds; set 1800 for 30 minutes
 IPERF_BW = "10M"            # e.g., 1M or 10M
 IPERF_RESOLUTION = 1        # iperf3 report interval (seconds)
 
