@@ -43,6 +43,14 @@ IPERF_RESOLUTION = 1        # iperf3 report interval (seconds)
 RRD_IN = "/var/lib/opennms/rrd/snmp/5/wlp3s0-28b2bd35dbcb/ifHCInOctets.rrd"
 RRD_OUT = "/var/lib/opennms/rrd/snmp/5/wlp3s0-28b2bd35dbcb/ifHCOutOctets.rrd"
 RRD_RESOLUTION = 30         # seconds (must match your polling interval)
+
+# --- Overhead RRD paths (OpenNMS Core localhost) ---
+RRD_OVERHEAD = {
+    "loadavg1": "/var/lib/opennms/rrd/snmp/1/loadavg1.rrd",
+    "memAvailReal": "/var/lib/opennms/rrd/snmp/1/memAvailReal.rrd",
+    "SwapOut": "/var/lib/opennms/rrd/snmp/1/SwapOut.rrd",
+    "IORawSent": "/var/lib/opennms/rrd/snmp/1/IORawSent.rrd",
+}
 # ===================
 
 # ---------- util helpers ----------
@@ -116,7 +124,19 @@ def scp_server_json(dest: str) -> None:
     cmd = _scp_base(src, dest)
     subprocess.run(cmd, check=True)
 
-# ---------- RRD fetch ----------
+# ---------- RRD fetch helper ----------
+def fetch_multiple_rrd(rrd_dict, start_ts, end_ts, resolution):
+    """Fetch multiple RRDs and return {metric_name: {ts: value}}"""
+    results = {}
+    for name, path in rrd_dict.items():
+        logging.info(f"Fetching overhead RRD: {name}")
+        try:
+            results[name] = fetch_rrd(path, start_ts, end_ts, resolution)
+        except Exception as e:
+            logging.warning(f"Failed to fetch {name}: {e}")
+    return results
+
+
 def fetch_rrd(rrd_path: str, start_ts: int, end_ts: int, resolution: int) -> dict:
     dat = rrdtool.fetch(
         rrd_path,
@@ -231,24 +251,32 @@ def run_client(reverse: bool = False) -> None:
 
 
 # ---------- CSV writer ----------
-def write_csv(rrd_in: dict, rrd_out: dict, in_series: dict, out_series: dict, out_csv: str) -> None:
+def write_csv(rrd_in, rrd_out, in_series, out_series, overhead, out_csv):
     all_ts = set(rrd_in) | set(rrd_out) | set(in_series) | set(out_series)
+    for m in overhead.values():
+        all_ts |= set(m)
     rows = []
     for ts in sorted(all_ts):
-        rows.append([
+        row = [
             ts,
             datetime.fromtimestamp(ts).isoformat(sep=' '),
             rrd_in.get(ts, ""),
             rrd_out.get(ts, ""),
             in_series.get(ts, ""),
-            out_series.get(ts, ""),
-        ])
+            out_series.get(ts, "")
+        ]
+        # Append overhead metrics in fixed order
+        for k in ["loadavg1", "memAvailReal", "SwapOut", "IORawSent"]:
+            row.append(overhead.get(k, {}).get(ts, ""))
+        rows.append(row)
+
     with open(out_csv, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow([
             "timestamp", "time",
             "rrd_in_bps", "rrd_out_bps",
             "iperf_server_in_bps", "iperf_server_out_bps",
+            "cpu_load", "mem_avail", "swap_out", "io_sent"
         ])
         w.writerows(rows)
     logging.info(f"Wrote merged CSV {out_csv}")
@@ -335,8 +363,12 @@ def main():
     rrd_in = fetch_rrd(RRD_IN, t_start_aligned, t_end_aligned, RRD_RESOLUTION)
     rrd_out = fetch_rrd(RRD_OUT, t_start_aligned, t_end_aligned, RRD_RESOLUTION)
 
+    # Fetch overhead metrics from Core ===
+    overhead_series = fetch_multiple_rrd(RRD_OVERHEAD, t_start_aligned, t_end_aligned, RRD_RESOLUTION)
+
     # debug: inspect overlap between iperf combined window and rrd
     rrd_min, rrd_max = series_time_range(rrd_in)
+    
     logging.info(f"RRD range: {rrd_min} -> {rrd_max}")
     if ip_min is not None and ip_max is not None:
         overlap_start = max(rrd_min, ip_min) if rrd_min is not None else ip_min
