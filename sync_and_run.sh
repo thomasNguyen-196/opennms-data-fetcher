@@ -53,6 +53,10 @@ PYTHON_PID=\$! # Get the Process ID (PID) of the Python script
 
 sleep 2 # Give it a moment to start and create the log file
 
+rm -f "\${LOG_FILE}" # Remove old log file if exists
+
+echo "--- Remote execution started. Following log file: \${LOG_FILE} ---"
+
 # Start following the log file in the background
 tail -f "\${LOG_FILE}" &
 TAIL_PID=\$! # Get the PID of the tail process
