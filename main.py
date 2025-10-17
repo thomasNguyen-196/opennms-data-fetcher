@@ -166,6 +166,8 @@ def _resample_records_to_dict(records, resample_sec=30) -> dict:
         return {}
     df = pd.DataFrame(records, columns=["timestamp", "bps"])
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
+    # Pandas anchors resample bins on the Unix epoch (00:00 UTC), so the resulting
+    # timestamps become exact multiples of `resample_sec`, matching the RRD grid.
     df = df.set_index("timestamp").resample(f"{resample_sec}s").mean().dropna()
     return {int(ts.timestamp()): float(v) for ts, v in df["bps"].items()}
 
