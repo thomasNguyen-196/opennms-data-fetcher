@@ -26,6 +26,7 @@ rsync -avz --delete \
     --exclude='json_data/' \
     --exclude='__pycache__/' \
     --exclude='merged_bits_dual-KB02.csv' \
+    --exclude='merged_bits_dual.csv' \
     -e "ssh -i ${SSH_KEY_PATH}" \
     . "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_REPO_DIR}/"
 
