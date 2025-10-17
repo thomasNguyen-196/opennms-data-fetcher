@@ -2,6 +2,27 @@
 
 This project automates active bandwidth sampling with `iperf3`, lines the results up with OpenNMS RRD counters, and writes a single CSV so you can compare synthetic throughput and SNMP measurements side by side.
 
+```mermaid
+---
+title: OpenNMS Data Fetcher Overview
+---
+flowchart LR
+    local["Local Dev Machine<br/>• deploy.sh<br/>• sync_and_run.sh"]
+    remote["ThinkPad X260 (remote)<br/>• runs main.py<br/>• launches iperf3 client<br/>• writes CSV + log"]
+    iperf["X240 node<br/>iperf3 server"]
+    onms["OpenNMS Core<br/>RRD metrics"]
+    localOut["Local artifacts<br/>merged_bits_dual.csv + data_fetcher.log"]
+
+    local -->|"① rsync + SSH run"| remote
+    local -.->|"② tail log"| remote
+    remote -->|"③ start server & run iperf"| iperf
+    iperf -->|"④ JSON results"| remote
+    remote -->|"⑤ rrdtool fetch"| onms
+    remote -->|"⑥ scp results back"| localOut
+    noteOnms["ℹ️ OpenNMS Core runs on X260<br/>RRDs carry throughput (ifHCIn/Out) + overhead metrics"]
+    onms -.-> noteOnms
+```
+
 At a glance:
 - Runs two `iperf3` passes (normal + reverse) against a remote host accessed over Tailscale.
 - Retrieves the server JSON logs, rescales them to the OpenNMS RRD interval, and fetches `ifHCIn/OutOctets` from your OpenNMS server.
