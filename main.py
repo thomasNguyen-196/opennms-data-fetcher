@@ -35,22 +35,51 @@ LOCAL_SERVER_JSON = "iperf3_server.json"   # temp name when scp
 CSV_OUT = "merged_bits_dual.csv"
 LOG_FILE = "data_fetcher.log"
 
-IPERF_DURATION = 1800        # seconds; set 1800 for 30 minutes
-IPERF_BW = "10M"            # e.g., 1M or 10M
+IPERF_DURATION = 30        # seconds; set 1800 for 30 minutes
+IPERF_BW = "1M"            # e.g., 1M or 10M
 IPERF_RESOLUTION = 1        # iperf3 report interval (seconds)
 
 # OpenNMS RRD paths (server node X240)
 RRD_IN = "/var/lib/opennms/rrd/snmp/5/wlp3s0-28b2bd35dbcb/ifHCInOctets.rrd"
 RRD_OUT = "/var/lib/opennms/rrd/snmp/5/wlp3s0-28b2bd35dbcb/ifHCOutOctets.rrd"
-RRD_RESOLUTION = 30         # seconds (must match your polling interval)
+RRD_RESOLUTION = 300         # seconds (must match your polling interval)
 
 # --- Overhead RRD paths (OpenNMS Core localhost) ---
 RRD_OVERHEAD = {
     "loadavg1": "/var/lib/opennms/rrd/snmp/1/loadavg1.rrd",
+    
+    # Memory metrics - complete picture
     "memAvailReal": "/var/lib/opennms/rrd/snmp/1/memAvailReal.rrd",
+    "memTotalReal": "/var/lib/opennms/rrd/snmp/1/memTotalReal.rrd",      # Total RAM
+    "memCached": "/var/lib/opennms/rrd/snmp/1/memCached.rrd",            # Cache (reclaimable)
+    "memBuffer": "/var/lib/opennms/rrd/snmp/1/memBuffer.rrd",            # Buffers (reclaimable)
+    "memTotalFree": "/var/lib/opennms/rrd/snmp/1/memTotalFree.rrd",      # Actual free memory
+    
+    # Swap metrics - to detect memory pressure
+    "memAvailSwap": "/var/lib/opennms/rrd/snmp/1/memAvailSwap.rrd",
+    "memTotalSwap": "/var/lib/opennms/rrd/snmp/1/memTotalSwap.rrd",
+    "SwapIn": "/var/lib/opennms/rrd/snmp/1/SwapIn.rrd",
     "SwapOut": "/var/lib/opennms/rrd/snmp/1/SwapOut.rrd",
+    
+    # I/O metrics
     "IORawSent": "/var/lib/opennms/rrd/snmp/1/IORawSent.rrd",
+    "IORawReceived": "/var/lib/opennms/rrd/snmp/1/IORawReceived.rrd",    # Balance with IORawSent
 }
+
+RRD_OVERHEAD_COLUMNS = [
+    ("loadavg1", "cpu_load"),
+    ("memAvailReal", "mem_avail"),
+    ("memTotalReal", "mem_total"),
+    ("memCached", "mem_cached"),
+    ("memBuffer", "mem_buffer"),
+    ("memTotalFree", "mem_free"),
+    ("memAvailSwap", "mem_avail_swap"),
+    ("memTotalSwap", "mem_total_swap"),
+    ("SwapIn", "swap_in"),
+    ("SwapOut", "swap_out"),
+    ("IORawSent", "io_sent"),
+    ("IORawReceived", "io_received"),
+]
 # ===================
 
 # ---------- util helpers ----------
@@ -258,8 +287,8 @@ def run_client(reverse: bool = False) -> None:
 # ---------- CSV writer ----------
 def write_csv(rrd_in, rrd_out, in_series, out_series, overhead, out_csv):
     all_ts = set(rrd_in) | set(rrd_out) | set(in_series) | set(out_series)
-    for m in overhead.values():
-        all_ts |= set(m)
+    for metric_key, _ in RRD_OVERHEAD_COLUMNS:
+        all_ts |= set(overhead.get(metric_key, {}))
     rows = []
     for ts in sorted(all_ts):
         row = [
@@ -271,18 +300,19 @@ def write_csv(rrd_in, rrd_out, in_series, out_series, overhead, out_csv):
             out_series.get(ts, "")
         ]
         # Append overhead metrics in fixed order
-        for k in ["loadavg1", "memAvailReal", "SwapOut", "IORawSent"]:
-            row.append(overhead.get(k, {}).get(ts, ""))
+        for metric_key, _ in RRD_OVERHEAD_COLUMNS:
+            row.append(overhead.get(metric_key, {}).get(ts, ""))
         rows.append(row)
 
     with open(out_csv, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow([
+        header = [
             "timestamp", "time",
             "rrd_in_bps", "rrd_out_bps",
             "iperf_server_in_bps", "iperf_server_out_bps",
-            "cpu_load", "mem_avail", "swap_out", "io_sent"
-        ])
+        ]
+        header.extend(name for _, name in RRD_OVERHEAD_COLUMNS)
+        w.writerow(header)
         w.writerows(rows)
     logging.info(f"Wrote merged CSV {out_csv}")
 
