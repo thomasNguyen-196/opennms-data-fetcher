@@ -1,0 +1,34 @@
+2025-10-21 21:12:12,496 [INFO] Started remote iperf3 server PID 40802
+2025-10-21 21:12:12,497 [INFO] raw t_start: 1761055932 (2025-10-21 21:12:12)
+2025-10-21 21:12:15,497 [INFO] Running iperf3 NORMAL for 1800s...
+2025-10-21 21:42:15,893 [INFO] Client JSON saved: json_data/iperf3_client.json
+2025-10-21 21:42:16,313 [INFO] Stopped remote iperf3 server
+2025-10-21 21:42:17,243 [INFO] Started remote iperf3 server PID 43706
+2025-10-21 21:42:20,244 [INFO] Running iperf3 REVERSE for 1800s...
+2025-10-21 22:12:20,630 [INFO] Client JSON saved: json_data/iperf3_client.json
+2025-10-21 22:12:21,131 [INFO] Stopped remote iperf3 server
+2025-10-21 22:12:21,683 [INFO] Waiting for OpenNMS/collectd to flush final RRD samples...
+2025-10-21 22:22:21,684 [INFO] raw t_end: 1761060141 (2025-10-21 22:22:21)
+2025-10-21 22:22:21,684 [INFO] Aligned time window -> start: 1761055800, end: 1761060300, step: 300s
+2025-10-21 22:22:21,685 [INFO] RRD last update: IN=1761060124 (2025-10-21 22:22:04) OUT=1761060124 (2025-10-21 22:22:04)
+2025-10-21 22:22:21,685 [INFO] Parsing iperf3 inbound (server receive)
+2025-10-21 22:22:21,736 [INFO] Parsing iperf3 outbound (server send)
+2025-10-21 22:22:21,772 [INFO] iperf combined range: 1761055800 -> 1761059400
+2025-10-21 22:22:21,772 [INFO] Fetching throughput RRD...
+2025-10-21 22:22:21,772 [INFO] Fetching overhead RRDs...
+2025-10-21 22:22:21,773 [INFO] Fetching overhead RRD: loadavg1
+2025-10-21 22:22:21,773 [INFO] Fetching overhead RRD: memAvailReal
+2025-10-21 22:22:21,773 [INFO] Fetching overhead RRD: memTotalReal
+2025-10-21 22:22:21,773 [INFO] Fetching overhead RRD: memCached
+2025-10-21 22:22:21,773 [INFO] Fetching overhead RRD: memBuffer
+2025-10-21 22:22:21,774 [INFO] Fetching overhead RRD: memTotalFree
+2025-10-21 22:22:21,774 [INFO] Fetching overhead RRD: memAvailSwap
+2025-10-21 22:22:21,774 [INFO] Fetching overhead RRD: memTotalSwap
+2025-10-21 22:22:21,774 [INFO] Fetching overhead RRD: SwapIn
+2025-10-21 22:22:21,774 [INFO] Fetching overhead RRD: SwapOut
+2025-10-21 22:22:21,775 [INFO] Fetching overhead RRD: IORawSent
+2025-10-21 22:22:21,775 [INFO] Fetching overhead RRD: IORawReceived
+2025-10-21 22:22:21,775 [INFO] RRD range: 1761055800 -> 1761059700
+2025-10-21 22:22:21,775 [INFO] Overlap exists: 1761055800 -> 1761059400
+2025-10-21 22:22:21,776 [INFO] Wrote merged CSV merged_bits_dual.csv
+2025-10-21 22:22:21,776 [INFO] DONE ✅
