@@ -36,13 +36,13 @@ CSV_OUT = "merged_bits_dual.csv"
 LOG_FILE = "data_fetcher.log"
 
 IPERF_DURATION = 1800        # seconds; set 1800 for 30 minutes
-IPERF_BW = "1M"            # e.g., 1M or 10M
+IPERF_BW = "10M"            # e.g., 1M or 10M
 IPERF_RESOLUTION = 1        # iperf3 report interval (seconds)
 
 # OpenNMS RRD paths (server node X240)
 RRD_IN = "/var/lib/opennms/rrd/snmp/5/wlp3s0-28b2bd35dbcb/ifHCInOctets.rrd"
 RRD_OUT = "/var/lib/opennms/rrd/snmp/5/wlp3s0-28b2bd35dbcb/ifHCOutOctets.rrd"
-RRD_RESOLUTION = 300         # seconds (must match your polling interval)
+RRD_RESOLUTION = 30         # seconds (must match your polling interval)
 
 # --- Overhead RRD paths (OpenNMS Core localhost) ---
 RRD_OVERHEAD = {
