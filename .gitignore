@@ -39,8 +39,7 @@ build/
 .DS_Store
 Thumbs.db
 
-# Logs và Database
-*.log
+# Database
 *.sqlite
 /db.sqlite3
 
